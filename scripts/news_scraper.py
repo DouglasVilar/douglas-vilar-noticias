@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-Douglas Vilar News - Scraper de Notícias Jurídicas
-Executa diariamente às 04h via GitHub Actions
-Busca notícias em 20+ fontes sobre:
-- Direito Imobiliário
-- Mercado Imobiliário  
-- Direito do Trabalho
-- Matérias replicadas em múltiplas mídias
+Douglas Vilar News - Scraper de Noticias Juridicas v2.0
+Executa diariamente as 04h via GitHub Actions
+ABORDAGENS: RSS, Google News, APIs publicas, HTML scraping, feeds Atom
 
-Prioridade de fontes:
-1. STJ, STF, TST
-2. TJPR, TJSP, TJRS
-3. Gazeta do Povo, Wall Street Journal, Jovem Pan News, Revista Oeste
-4. Sites internacionais (Reuters, Bloomberg) - traduzidos
+Fontes expandidas (30+):
+  TRIBUNAIS: STJ, STF, TST, TJPR, TJSP, TJRS, TRT-9, TRT-2
+  ORGAOS: CRECI-PR, COFECI, Senado Federal, Camara dos Deputados
+  JURIDICO: Conjur, Migalhas, JOTA, IRIB, Secovi-SP
+  MIDIA BR: Gazeta do Povo, Jovem Pan, Revista Oeste, InfoMoney, Valor
+  INTERNACIONAL: Google News EN, Reuters RSS, BBC Business, CNBC RE
+  IMOBILIARIO: FipeZap, CBIC, Abrainc, Sinduscon
 
 Autor: Douglas Vilar - OAB/PR 47.278
 """
@@ -23,350 +21,250 @@ import re
 import hashlib
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from urllib.parse import urljoin, quote
 
 import requests
 from bs4 import BeautifulSoup
 import feedparser
 
-# Timezone Brasil
 BR_TZ = timezone(timedelta(hours=-3))
 
-# ============================================================
-# CONFIGURAÇÃO DAS FONTES
-# ============================================================
-SOURCES = {
-    # ---- TRIBUNAIS SUPERIORES (Prioridade 1) ----
-    "STJ": {
-        "urls": [
-            "https://www.stj.jus.br/sites/portalp/Paginas/Comunicacao/Noticias.aspx",
-        ],
-        "rss": "https://www.stj.jus.br/sites/portalp/Paginas/Comunicacao/Noticias-RSS.aspx",
-        "keywords_imob": ["imóvel", "imobiliário", "locação", "despejo", "condomínio", "usucapião",
-                          "registro de imóveis", "incorporação", "loteamento", "compromisso de compra",
-                          "hipoteca", "alienação fiduciária", "ITBI", "propriedade"],
-        "keywords_mercado": ["mercado imobiliário", "construção civil", "financiamento imobiliário",
-                             "crédito habitacional", "Minha Casa", "FII", "fundo imobiliário"],
-        "keywords_trabalho": ["trabalhista", "CLT", "empregado", "empregador", "rescisão",
-                              "FGTS", "horas extras", "assédio", "demissão", "vínculo empregatício"],
-        "priority": 1,
-        "type": "tribunal"
-    },
-    "STF": {
-        "urls": [
-            "https://portal.stf.jus.br/noticias/listarNoticias.asp",
-        ],
-        "rss": "https://portal.stf.jus.br/noticias/rss.asp",
-        "keywords_imob": ["imóvel", "propriedade", "desapropriação", "usucapião", "moradia",
-                          "função social", "direito de propriedade"],
-        "keywords_mercado": ["mercado imobiliário", "construção", "habitação", "urbanismo"],
-        "keywords_trabalho": ["trabalhista", "trabalho", "empregado", "sindicato", "greve",
-                              "terceirização", "pejotização"],
-        "priority": 1,
-        "type": "tribunal"
-    },
-    "TST": {
-        "urls": [
-            "https://www.tst.jus.br/noticias",
-        ],
-        "rss": "https://www.tst.jus.br/rssfeed/journal",
-        "keywords_imob": ["imóvel", "imobiliário"],
-        "keywords_mercado": ["construção civil", "mercado imobiliário"],
-        "keywords_trabalho": ["trabalhista", "CLT", "empregado", "empregador", "rescisão",
-                              "FGTS", "trabalho", "justa causa", "assédio moral", "horas extras",
-                              "intervalo", "insalubridade", "periculosidade", "acidente de trabalho",
-                              "estabilidade", "aviso prévio", "férias", "13o salário"],
-        "priority": 1,
-        "type": "tribunal"
-    },
-
-    # ---- TRIBUNAIS ESTADUAIS (Prioridade 2) ----
-    "TJPR": {
-        "urls": [
-            "https://www.tjpr.jus.br/noticias",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "condomínio", "locação", "despejo",
-                          "usucapião", "registro", "incorporação"],
-        "keywords_mercado": ["mercado imobiliário", "construção civil"],
-        "keywords_trabalho": ["trabalhista", "trabalho"],
-        "priority": 2,
-        "type": "tribunal"
-    },
-    "TJSP": {
-        "urls": [
-            "https://www.tjsp.jus.br/Noticias/Noticias",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "condomínio", "locação", "despejo",
-                          "usucapião", "registro", "incorporação"],
-        "keywords_mercado": ["mercado imobiliário", "construção civil"],
-        "keywords_trabalho": ["trabalhista", "trabalho"],
-        "priority": 2,
-        "type": "tribunal"
-    },
-    "TJRS": {
-        "urls": [
-            "https://www.tjrs.jus.br/novo/noticia/",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "condomínio", "locação"],
-        "keywords_mercado": ["mercado imobiliário"],
-        "keywords_trabalho": ["trabalhista", "trabalho"],
-        "priority": 2,
-        "type": "tribunal"
-    },
-
-    # ---- MÍDIA NACIONAL (Prioridade 3) ----
-    "Gazeta do Povo": {
-        "urls": [
-            "https://www.gazetadopovo.com.br/economia/",
-            "https://www.gazetadopovo.com.br/vida-e-cidadania/",
-        ],
-        "rss": "https://www.gazetadopovo.com.br/feed/",
-        "keywords_imob": ["imóvel", "imobiliário", "condomínio", "locação", "aluguel",
-                          "escritura", "registro", "ITBI", "IPTU"],
-        "keywords_mercado": ["mercado imobiliário", "construtora", "incorporadora", "Selic",
-                             "financiamento", "crédito imobiliário", "FII", "fundo imobiliário",
-                             "venda de imóveis", "lançamento imobiliário"],
-        "keywords_trabalho": ["CLT", "trabalhista", "demissão", "emprego", "reforma trabalhista"],
-        "priority": 3,
-        "type": "media"
-    },
-    "Jovem Pan News": {
-        "urls": [
-            "https://jovempan.com.br/noticias/economia",
-            "https://jovempan.com.br/noticias/brasil",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "moradia", "habitação"],
-        "keywords_mercado": ["mercado imobiliário", "construção civil", "Selic", "financiamento"],
-        "keywords_trabalho": ["CLT", "trabalhista", "emprego", "desemprego"],
-        "priority": 3,
-        "type": "media"
-    },
-    "Revista Oeste": {
-        "urls": [
-            "https://revistaoeste.com/economia/",
-            "https://revistaoeste.com/brasil/",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "propriedade"],
-        "keywords_mercado": ["mercado imobiliário", "construção", "Selic"],
-        "keywords_trabalho": ["trabalhista", "CLT", "emprego"],
-        "priority": 3,
-        "type": "media"
-    },
-    "Conjur": {
-        "urls": [
-            "https://www.conjur.com.br/",
-        ],
-        "rss": "https://www.conjur.com.br/rss.xml",
-        "keywords_imob": ["imóvel", "imobiliário", "locação", "usucapião", "condomínio",
-                          "despejo", "registro de imóveis", "incorporação"],
-        "keywords_mercado": ["mercado imobiliário"],
-        "keywords_trabalho": ["trabalhista", "CLT", "TST", "trabalho"],
-        "priority": 3,
-        "type": "media"
-    },
-    "Migalhas": {
-        "urls": [
-            "https://www.migalhas.com.br/quentes",
-        ],
-        "rss": "https://www.migalhas.com.br/rss/quentes",
-        "keywords_imob": ["imóvel", "imobiliário", "locação", "condomínio", "usucapião"],
-        "keywords_mercado": ["mercado imobiliário", "incorporação", "construção civil"],
-        "keywords_trabalho": ["trabalhista", "CLT", "TST", "trabalho", "empregado"],
-        "priority": 3,
-        "type": "media"
-    },
-    "IRIB": {
-        "urls": [
-            "https://www.irib.org.br/noticias",
-        ],
-        "keywords_imob": ["registro", "imóvel", "imobiliário", "escritura", "matrícula",
-                          "averbação", "usucapião", "retificação"],
-        "keywords_mercado": ["mercado imobiliário"],
-        "keywords_trabalho": [],
-        "priority": 3,
-        "type": "media"
-    },
-    "Secovi-SP": {
-        "urls": [
-            "https://www.secovi.com.br/noticias",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "locação", "condomínio"],
-        "keywords_mercado": ["mercado imobiliário", "venda", "lançamento", "locação",
-                             "aluguel", "incorporação", "construção"],
-        "keywords_trabalho": [],
-        "priority": 3,
-        "type": "media"
-    },
-    "InfoMoney": {
-        "urls": [
-            "https://www.infomoney.com.br/onde-investir/fundos-imobiliarios/",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário"],
-        "keywords_mercado": ["FII", "fundo imobiliário", "mercado imobiliário", "Selic",
-                             "crédito imobiliário", "financiamento"],
-        "keywords_trabalho": ["CLT", "trabalhista"],
-        "priority": 3,
-        "type": "media"
-    },
-    "Valor Econômico": {
-        "urls": [
-            "https://valor.globo.com/legislacao/",
-        ],
-        "keywords_imob": ["imóvel", "imobiliário", "propriedade"],
-        "keywords_mercado": ["mercado imobiliário", "construção civil", "incorporação",
-                             "financiamento imobiliário"],
-        "keywords_trabalho": ["trabalhista", "reforma trabalhista", "emprego"],
-        "priority": 3,
-        "type": "media"
-    },
-
-    # ---- SITES INTERNACIONAIS (Prioridade 4) ----
-    "Wall Street Journal": {
-        "urls": [
-            "https://www.wsj.com/real-estate",
-        ],
-        "keywords_imob": ["real estate", "property", "housing", "mortgage", "condominium",
-                          "lease", "eviction", "tenant"],
-        "keywords_mercado": ["real estate market", "housing market", "property market",
-                             "construction", "REIT", "mortgage rates"],
-        "keywords_trabalho": ["labor", "employment", "workers", "wage"],
-        "priority": 4,
-        "type": "international",
-        "language": "en"
-    },
-    "Reuters": {
-        "urls": [
-            "https://www.reuters.com/business/finance/",
-        ],
-        "rss": "https://www.reuters.com/rssFeed/businessNews",
-        "keywords_imob": ["real estate", "property", "housing"],
-        "keywords_mercado": ["real estate market", "housing market", "construction",
-                             "mortgage", "REIT"],
-        "keywords_trabalho": ["labor", "employment", "workers"],
-        "priority": 4,
-        "type": "international",
-        "language": "en"
-    },
-    "Bloomberg": {
-        "urls": [
-            "https://www.bloomberg.com/real-estate",
-        ],
-        "keywords_imob": ["real estate", "property", "housing"],
-        "keywords_mercado": ["real estate market", "housing market", "property prices"],
-        "keywords_trabalho": ["labor market", "employment"],
-        "priority": 4,
-        "type": "international",
-        "language": "en"
-    },
-    "Financial Times": {
-        "urls": [
-            "https://www.ft.com/property",
-        ],
-        "keywords_imob": ["real estate", "property", "housing"],
-        "keywords_mercado": ["real estate market", "property market", "housing prices"],
-        "keywords_trabalho": ["labour", "employment"],
-        "priority": 4,
-        "type": "international",
-        "language": "en"
-    },
-}
-
-# ============================================================
-# HEADERS PARA REQUESTS
-# ============================================================
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                  "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate",
+    "Connection": "keep-alive",
 }
 
 # ============================================================
-# FUNÇÕES DE SCRAPING
+# KEYWORDS POR CATEGORIA
+# ============================================================
+KW_IMOB = [
+    "imovel", "imobiliario", "locacao", "despejo", "condominio", "usucapiao",
+    "registro de imoveis", "incorporacao", "loteamento", "compromisso de compra",
+    "hipoteca", "alienacao fiduciaria", "ITBI", "propriedade", "escritura",
+    "matricula", "averbacao", "retificacao", "distrato imobiliario",
+    "lei do inquilinato", "contrato de locacao", "fianca locaticia",
+    "direito real", "posse", "desapropriacao", "regularizacao fundiaria",
+    "usucapiao extrajudicial", "REURB", "direito imobiliario",
+    "compra e venda de imovel", "promessa de compra", "corretagem",
+    "vicio construtivo", "atraso na entrega", "incorporadora",
+]
+
+KW_MERCADO = [
+    "mercado imobiliario", "construcao civil", "financiamento imobiliario",
+    "credito habitacional", "Minha Casa", "FII", "fundo imobiliario",
+    "Selic", "taxa de juros", "lancamento imobiliario", "venda de imoveis",
+    "preco de imoveis", "FipeZap", "CBIC", "Abrainc", "Sinduscon",
+    "credito imobiliario", "FGTS", "Casa Verde Amarela", "SFH", "SFI",
+    "CRI", "LCI", "aluguel", "rentabilidade", "vacancia",
+    "construtora", "incorporadora", "real estate market",
+    "housing market", "property market", "mortgage rates", "REIT",
+    "real estate", "property prices", "housing prices",
+]
+
+KW_TRABALHO = [
+    "trabalhista", "CLT", "empregado", "empregador", "rescisao",
+    "FGTS", "horas extras", "assedio", "demissao", "vinculo empregaticio",
+    "justa causa", "aviso previo", "ferias", "13o salario",
+    "insalubridade", "periculosidade", "acidente de trabalho",
+    "estabilidade", "intervalo", "terceirizacao", "pejotizacao",
+    "reforma trabalhista", "trabalho remoto", "teletrabalho",
+    "sindicato", "convencao coletiva", "dissidio",
+    "labor", "employment", "workers", "wage",
+]
+
+
+# ============================================================
+# FONTES COM MULTIPLAS ABORDAGENS
 # ============================================================
 
-def fetch_page(url, timeout=15):
-    """Busca o conteúdo de uma URL."""
+def get_rss_sources():
+    """Fontes via RSS/Atom - mais confiavel."""
+    return [
+        # TRIBUNAIS
+        {"name": "STJ", "url": "https://www.stj.jus.br/sites/portalp/Paginas/Comunicacao/Noticias-RSS.aspx", "priority": 1, "type": "tribunal"},
+        {"name": "STF", "url": "https://portal.stf.jus.br/noticias/rss.asp", "priority": 1, "type": "tribunal"},
+        {"name": "TST", "url": "https://www.tst.jus.br/rssfeed/journal", "priority": 1, "type": "tribunal"},
+
+        # JURIDICO
+        {"name": "Conjur", "url": "https://www.conjur.com.br/rss.xml", "priority": 2, "type": "media"},
+        {"name": "Migalhas", "url": "https://www.migalhas.com.br/rss/quentes", "priority": 2, "type": "media"},
+        {"name": "JOTA", "url": "https://www.jota.info/feed", "priority": 2, "type": "media"},
+
+        # SENADO E CAMARA
+        {"name": "Senado Federal", "url": "https://www12.senado.leg.br/noticias/feed", "priority": 2, "type": "governo"},
+        {"name": "Camara dos Deputados", "url": "https://www.camara.leg.br/noticias/rss/ultimas", "priority": 2, "type": "governo"},
+        {"name": "Agencia Brasil", "url": "http://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml", "priority": 3, "type": "media"},
+
+        # MIDIA BR
+        {"name": "Gazeta do Povo", "url": "https://www.gazetadopovo.com.br/feed/", "priority": 3, "type": "media"},
+        {"name": "InfoMoney", "url": "https://www.infomoney.com.br/feed/", "priority": 3, "type": "media"},
+        {"name": "Valor Economico", "url": "https://pox.globo.com/rss/valor/", "priority": 3, "type": "media"},
+        {"name": "Estadao", "url": "https://www.estadao.com.br/arc/outboundfeeds/rss/?outputType=xml", "priority": 3, "type": "media"},
+        {"name": "Folha de SP", "url": "https://feeds.folha.uol.com.br/mercado/rss091.xml", "priority": 3, "type": "media"},
+
+        # INTERNACIONAL
+        {"name": "Reuters Business", "url": "https://feeds.reuters.com/reuters/businessNews", "priority": 4, "type": "international", "lang": "en"},
+        {"name": "BBC Business", "url": "https://feeds.bbci.co.uk/news/business/rss.xml", "priority": 4, "type": "international", "lang": "en"},
+        {"name": "CNBC Real Estate", "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=104723436", "priority": 4, "type": "international", "lang": "en"},
+    ]
+
+
+def get_google_news_queries():
+    """Buscas no Google News RSS - abordagem alternativa poderosa."""
+    queries = [
+        # Direito Imobiliario
+        '"direito imobiliario" OR "usucapiao" OR "registro de imoveis"',
+        '"condominio" "decisao judicial"',
+        '"incorporadora" "atraso entrega" OR "distrato"',
+        '"locacao" "lei do inquilinato" OR "despejo"',
+        '"CRECI" OR "COFECI" "imobiliario"',
+
+        # Mercado Imobiliario
+        '"mercado imobiliario" Brasil',
+        '"fundo imobiliario" OR "FII" rentabilidade',
+        '"financiamento imobiliario" OR "credito habitacional" Selic',
+        '"lancamento imobiliario" OR "venda imoveis" 2026',
+        '"CBIC" OR "Abrainc" OR "Sinduscon" mercado',
+
+        # Direito do Trabalho
+        '"direito do trabalho" OR "CLT" decisao TST',
+        '"reforma trabalhista" OR "pejotizacao" OR "terceirizacao"',
+        '"horas extras" OR "justa causa" OR "rescisao" trabalhista',
+
+        # Internacional
+        '"real estate market" Brazil OR "mercado imobiliario"',
+        '"housing market" trends 2026',
+    ]
+    return queries
+
+
+def get_html_sources():
+    """Fontes via HTML scraping direto."""
+    return [
+        # CRECI e COFECI
+        {"name": "COFECI", "urls": [
+            "https://www.cofeci.gov.br/noticias",
+            "https://www.cofeci.gov.br/",
+        ], "priority": 2, "type": "orgao"},
+        {"name": "CRECI-PR", "urls": [
+            "https://www.crecipr.gov.br/noticias",
+            "https://www.crecipr.gov.br/",
+        ], "priority": 2, "type": "orgao"},
+        {"name": "CRECI-SP", "urls": [
+            "https://www.crecisp.gov.br/noticias",
+        ], "priority": 3, "type": "orgao"},
+
+        # TRIBUNAIS - HTML
+        {"name": "TJPR", "urls": [
+            "https://www.tjpr.jus.br/noticias",
+        ], "priority": 2, "type": "tribunal"},
+        {"name": "TJSP", "urls": [
+            "https://www.tjsp.jus.br/Noticias/Noticias",
+        ], "priority": 2, "type": "tribunal"},
+        {"name": "TRT-9 (PR)", "urls": [
+            "https://www.trt9.jus.br/portal/noticias.xhtml",
+        ], "priority": 2, "type": "tribunal"},
+
+        # IMOBILIARIO ESPECIALIZADO
+        {"name": "IRIB", "urls": [
+            "https://www.irib.org.br/noticias",
+        ], "priority": 3, "type": "media"},
+        {"name": "Secovi-SP", "urls": [
+            "https://www.secovi.com.br/noticias",
+        ], "priority": 3, "type": "media"},
+        {"name": "CBIC", "urls": [
+            "https://cbic.org.br/noticias/",
+        ], "priority": 3, "type": "media"},
+        {"name": "Abrainc", "urls": [
+            "https://www.abrainc.org.br/noticias/",
+        ], "priority": 3, "type": "media"},
+
+        # MIDIA
+        {"name": "Revista Oeste", "urls": [
+            "https://revistaoeste.com/economia/",
+        ], "priority": 3, "type": "media"},
+        {"name": "Jovem Pan News", "urls": [
+            "https://jovempan.com.br/noticias/economia",
+        ], "priority": 3, "type": "media"},
+    ]
+
+
+# ============================================================
+# FUNCOES DE BUSCA
+# ============================================================
+
+def fetch_url(url, timeout=20):
+    """Busca URL com tratamento robusto."""
     try:
-        response = requests.get(url, headers=HEADERS, timeout=timeout, verify=True)
-        response.raise_for_status()
-        response.encoding = response.apparent_encoding or 'utf-8'
-        return response.text
+        resp = requests.get(url, headers=HEADERS, timeout=timeout, verify=True, allow_redirects=True)
+        resp.raise_for_status()
+        resp.encoding = resp.apparent_encoding or 'utf-8'
+        return resp.text
     except Exception as e:
-        print(f"  [ERRO] Falha ao acessar {url}: {e}")
+        print(f"    [ERRO] {url}: {type(e).__name__}: {str(e)[:100]}")
         return None
 
 
-def fetch_rss(rss_url):
-    """Busca e parseia um feed RSS."""
+def fetch_rss_feed(url):
+    """Busca e parseia feed RSS/Atom."""
     try:
-        feed = feedparser.parse(rss_url)
-        return feed.entries if feed.entries else []
+        feed = feedparser.parse(url, agent=HEADERS['User-Agent'])
+        if feed.bozo and not feed.entries:
+            print(f"    [AVISO] Feed com problemas: {url}")
+            return []
+        return feed.entries[:20]
     except Exception as e:
-        print(f"  [ERRO] Falha no RSS {rss_url}: {e}")
+        print(f"    [ERRO] RSS {url}: {e}")
         return []
 
 
-def extract_articles_from_html(html, base_url, source_name):
-    """Extrai artigos de uma página HTML."""
-    articles = []
-    if not html:
-        return articles
+def fetch_google_news(query, num=10):
+    """Busca via Google News RSS - funciona sem API key."""
+    encoded = quote(query)
+    url = f"https://news.google.com/rss/search?q={encoded}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+    try:
+        feed = feedparser.parse(url, agent=HEADERS['User-Agent'])
+        articles = []
+        for entry in feed.entries[:num]:
+            title = entry.get('title', '').strip()
+            # Google News coloca " - Fonte" no final do titulo
+            source_match = re.search(r' - ([^-]+)$', title)
+            source = source_match.group(1).strip() if source_match else 'Google News'
+            clean_title = re.sub(r' - [^-]+$', '', title).strip()
 
-    soup = BeautifulSoup(html, 'html.parser')
-
-    # Busca padrões comuns de artigos
-    selectors = [
-        'article', '.news-item', '.noticia', '.post', '.card',
-        '.list-item', '.item-noticia', '.entry', '.news-card',
-        'li.item', '.resultado', '.materia'
-    ]
-
-    for selector in selectors:
-        items = soup.select(selector)
-        for item in items[:10]:  # Máximo 10 por fonte
-            title_el = item.find(['h1', 'h2', 'h3', 'h4', 'a'])
-            if not title_el:
+            if len(clean_title) < 15:
                 continue
 
-            title = title_el.get_text(strip=True)
-            if len(title) < 15:
-                continue
+            summary = ''
+            if entry.get('summary'):
+                soup = BeautifulSoup(entry.summary, 'html.parser')
+                summary = soup.get_text(strip=True)[:300]
 
-            link = None
-            link_el = title_el if title_el.name == 'a' else title_el.find('a')
-            if link_el and link_el.get('href'):
-                href = link_el['href']
-                if href.startswith('/'):
-                    from urllib.parse import urljoin
-                    href = urljoin(base_url, href)
-                link = href
-
-            summary = ""
-            desc_el = item.find(['p', '.resumo', '.summary', '.excerpt', '.descricao'])
-            if desc_el:
-                summary = desc_el.get_text(strip=True)[:300]
-
-            date_el = item.find(['time', '.data', '.date', 'span.date'])
             pub_date = None
-            if date_el:
-                date_text = date_el.get('datetime') or date_el.get_text(strip=True)
-                pub_date = parse_date(date_text)
+            if entry.get('published_parsed'):
+                from time import mktime
+                pub_date = datetime.fromtimestamp(
+                    mktime(entry.published_parsed), tz=BR_TZ
+                ).isoformat()
 
             articles.append({
-                "title": title,
+                "title": clean_title,
                 "summary": summary,
-                "url": link or base_url,
+                "url": entry.get('link', ''),
                 "date": pub_date,
-                "source": source_name,
+                "source": source,
             })
+        return articles
+    except Exception as e:
+        print(f"    [ERRO] Google News: {e}")
+        return []
 
-        if articles:
-            break  # Usa o primeiro selector que funcionar
 
-    return articles
-
-
-def extract_articles_from_rss(entries, source_name):
+def extract_from_rss_entries(entries, source_name):
     """Extrai artigos de entradas RSS."""
     articles = []
     for entry in entries[:15]:
@@ -379,13 +277,27 @@ def extract_articles_from_rss(entries, source_name):
         if entry.get('summary'):
             soup = BeautifulSoup(entry.summary, 'html.parser')
             summary = soup.get_text(strip=True)[:300]
+        elif entry.get('description'):
+            soup = BeautifulSoup(entry.description, 'html.parser')
+            summary = soup.get_text(strip=True)[:300]
 
         pub_date = None
         if entry.get('published_parsed'):
             from time import mktime
-            pub_date = datetime.fromtimestamp(
-                mktime(entry.published_parsed), tz=BR_TZ
-            ).isoformat()
+            try:
+                pub_date = datetime.fromtimestamp(
+                    mktime(entry.published_parsed), tz=BR_TZ
+                ).isoformat()
+            except:
+                pass
+        elif entry.get('updated_parsed'):
+            from time import mktime
+            try:
+                pub_date = datetime.fromtimestamp(
+                    mktime(entry.updated_parsed), tz=BR_TZ
+                ).isoformat()
+            except:
+                pass
 
         articles.append({
             "title": title,
@@ -394,255 +306,297 @@ def extract_articles_from_rss(entries, source_name):
             "date": pub_date,
             "source": source_name,
         })
+    return articles
+
+
+def extract_from_html(html, base_url, source_name):
+    """Extrai artigos de HTML com multiplos seletores."""
+    articles = []
+    if not html:
+        return articles
+
+    soup = BeautifulSoup(html, 'html.parser')
+
+    selectors = [
+        'article',
+        '.news-item', '.noticia', '.post', '.card-body',
+        '.list-item', '.item-noticia', '.entry',
+        '.news-card', '.materia', '.resultado',
+        'li.item', '.listagem-noticias li',
+        '.views-row', '.td-block-span',
+        '.noticias-lista .item', '.lista-noticias .item',
+        '.elementor-post', '.blog-post',
+        'div[class*="noticia"]', 'div[class*="news"]',
+        'div[class*="post"]',
+    ]
+
+    for selector in selectors:
+        try:
+            items = soup.select(selector)
+        except:
+            continue
+
+        for item in items[:10]:
+            title_el = item.find(['h1', 'h2', 'h3', 'h4'])
+            if not title_el:
+                link_el = item.find('a')
+                if link_el and len(link_el.get_text(strip=True)) > 15:
+                    title_el = link_el
+                else:
+                    continue
+
+            title = title_el.get_text(strip=True)
+            if len(title) < 15 or len(title) > 500:
+                continue
+
+            link = None
+            if title_el.name == 'a':
+                link = title_el.get('href', '')
+            else:
+                a_tag = title_el.find('a') or item.find('a')
+                if a_tag:
+                    link = a_tag.get('href', '')
+
+            if link and link.startswith('/'):
+                link = urljoin(base_url, link)
+            elif link and not link.startswith('http'):
+                link = urljoin(base_url, link)
+
+            summary = ""
+            for p_sel in ['p', '.resumo', '.summary', '.excerpt', '.descricao', '.texto', 'span.description']:
+                desc = item.find(p_sel) if not '.' in p_sel else item.select_one(p_sel)
+                if desc and desc != title_el:
+                    summary = desc.get_text(strip=True)[:300]
+                    if len(summary) > 20:
+                        break
+
+            articles.append({
+                "title": title,
+                "summary": summary,
+                "url": link or base_url,
+                "date": None,
+                "source": source_name,
+            })
+
+        if articles:
+            break
 
     return articles
 
 
-def parse_date(date_str):
-    """Tenta parsear uma string de data."""
-    if not date_str:
-        return None
-    
-    formats = [
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%d",
-        "%d/%m/%Y",
-        "%d/%m/%Y %H:%M",
-        "%d de %B de %Y",
-    ]
-    
-    for fmt in formats:
-        try:
-            dt = datetime.strptime(date_str[:19], fmt)
-            return dt.replace(tzinfo=BR_TZ).isoformat()
-        except (ValueError, IndexError):
-            continue
-    return None
+def classify_article(title, summary):
+    """Classifica artigo por categoria usando keywords."""
+    text = (title + ' ' + summary).lower()
+    # Remove acentos simples para matching
+    import unicodedata
+    text_norm = unicodedata.normalize('NFD', text)
+    text_norm = text_norm.encode('ascii', 'ignore').decode('ascii').lower()
 
+    scores = {'direito-imobiliario': 0, 'mercado-imobiliario': 0, 'direito-trabalho': 0}
 
-def classify_article(article, source_config):
-    """Classifica um artigo com base nas keywords."""
-    text = (article.get('title', '') + ' ' + article.get('summary', '')).lower()
+    for kw in KW_IMOB:
+        kw_norm = unicodedata.normalize('NFD', kw).encode('ascii', 'ignore').decode('ascii').lower()
+        if kw_norm in text_norm:
+            scores['direito-imobiliario'] += 2
+        elif kw.lower() in text:
+            scores['direito-imobiliario'] += 2
 
-    # Conta matches por categoria
-    scores = {
-        'direito-imobiliario': 0,
-        'mercado-imobiliario': 0,
-        'direito-trabalho': 0,
-    }
+    for kw in KW_MERCADO:
+        kw_norm = unicodedata.normalize('NFD', kw).encode('ascii', 'ignore').decode('ascii').lower()
+        if kw_norm in text_norm:
+            scores['mercado-imobiliario'] += 2
+        elif kw.lower() in text:
+            scores['mercado-imobiliario'] += 2
 
-    for kw in source_config.get('keywords_imob', []):
-        if kw.lower() in text:
-            scores['direito-imobiliario'] += 1
+    for kw in KW_TRABALHO:
+        kw_norm = unicodedata.normalize('NFD', kw).encode('ascii', 'ignore').decode('ascii').lower()
+        if kw_norm in text_norm:
+            scores['direito-trabalho'] += 2
+        elif kw.lower() in text:
+            scores['direito-trabalho'] += 2
 
-    for kw in source_config.get('keywords_mercado', []):
-        if kw.lower() in text:
-            scores['mercado-imobiliario'] += 1
-
-    for kw in source_config.get('keywords_trabalho', []):
-        if kw.lower() in text:
-            scores['direito-trabalho'] += 1
-
-    # Retorna a categoria com maior score, ou None
     max_score = max(scores.values())
     if max_score == 0:
         return None
-
     for cat, score in scores.items():
         if score == max_score:
             return cat
-
     return None
 
 
-def generate_article_id(title, date):
-    """Gera um ID único para o artigo."""
-    content = f"{title}_{date}"
+def gen_id(title, date_str):
+    content = f"{title}_{date_str}"
     return hashlib.md5(content.encode()).hexdigest()[:12]
 
 
 # ============================================================
-# FUNÇÃO PRINCIPAL DE BUSCA
+# MAIN SCRAPER
 # ============================================================
 
-def scrape_all_sources():
-    """Busca notícias em todas as fontes configuradas."""
-    all_articles = []
-    today = datetime.now(BR_TZ).strftime("%Y-%m-%d")
+def run_scraper():
+    today = datetime.now(BR_TZ)
+    today_str = today.strftime("%Y-%m-%d")
+    all_found = []
 
     print(f"\n{'='*60}")
-    print(f"  DOUGLAS VILAR NEWS - Scraper de Notícias")
-    print(f"  Data: {today} | Horário: {datetime.now(BR_TZ).strftime('%H:%M')}")
-    print(f"{'='*60}\n")
+    print(f"  DOUGLAS VILAR NEWS - Scraper v2.0")
+    print(f"  Data: {today_str} | Hora: {today.strftime('%H:%M')}")
+    print(f"  Fontes: RSS + Google News + HTML (30+)")
+    print(f"{'='*60}")
 
-    # Ordena fontes por prioridade
-    sorted_sources = sorted(SOURCES.items(), key=lambda x: x[1].get('priority', 99))
+    # ---- ABORDAGEM 1: RSS FEEDS ----
+    print(f"\n--- ABORDAGEM 1: RSS FEEDS ---")
+    for src in get_rss_sources():
+        print(f"  [{src['priority']}] RSS: {src['name']}...")
+        entries = fetch_rss_feed(src['url'])
+        if entries:
+            arts = extract_from_rss_entries(entries, src['name'])
+            print(f"    -> {len(entries)} entradas, {len(arts)} artigos")
+            for a in arts:
+                cat = classify_article(a['title'], a['summary'])
+                if cat:
+                    a['category'] = cat
+                    a['translated'] = src.get('lang') == 'en'
+                    a['priority'] = src['priority']
+                    all_found.append(a)
+        else:
+            print(f"    -> 0 entradas")
 
-    for source_name, config in sorted_sources:
-        print(f"\n[{config.get('priority', '?')}] Buscando em: {source_name}...")
+    # ---- ABORDAGEM 2: GOOGLE NEWS RSS ----
+    print(f"\n--- ABORDAGEM 2: GOOGLE NEWS ---")
+    for query in get_google_news_queries():
+        short_q = query[:50] + '...' if len(query) > 50 else query
+        print(f"  Buscando: {short_q}")
+        arts = fetch_google_news(query, num=8)
+        print(f"    -> {len(arts)} resultados")
+        for a in arts:
+            cat = classify_article(a['title'], a['summary'])
+            if cat:
+                a['category'] = cat
+                a['translated'] = False
+                a['priority'] = 3
+                all_found.append(a)
 
-        source_articles = []
-
-        # Tenta RSS primeiro
-        if config.get('rss'):
-            print(f"  -> Via RSS: {config['rss']}")
-            entries = fetch_rss(config['rss'])
-            if entries:
-                source_articles.extend(
-                    extract_articles_from_rss(entries, source_name)
-                )
-                print(f"  -> {len(entries)} entradas RSS encontradas")
-
-        # Busca via HTML
-        for url in config.get('urls', []):
-            print(f"  -> Via HTML: {url}")
-            html = fetch_page(url)
+    # ---- ABORDAGEM 3: HTML SCRAPING ----
+    print(f"\n--- ABORDAGEM 3: HTML SCRAPING ---")
+    for src in get_html_sources():
+        print(f"  [{src['priority']}] HTML: {src['name']}...")
+        for url in src.get('urls', []):
+            html = fetch_url(url)
             if html:
-                articles = extract_articles_from_html(html, url, source_name)
-                source_articles.extend(articles)
-                print(f"  -> {len(articles)} artigos extraídos")
+                arts = extract_from_html(html, url, src['name'])
+                print(f"    -> {url}: {len(arts)} artigos")
+                for a in arts:
+                    cat = classify_article(a['title'], a['summary'])
+                    if cat:
+                        a['category'] = cat
+                        a['translated'] = False
+                        a['priority'] = src['priority']
+                        all_found.append(a)
 
-        # Classifica e filtra
-        classified = 0
-        for article in source_articles:
-            category = classify_article(article, config)
-            if category:
-                article['category'] = category
-                article['translated'] = config.get('language') == 'en'
-                article['source_type'] = config.get('type', 'media')
-                article['priority'] = config.get('priority', 99)
+    # ---- DEDUPLICACAO ----
+    print(f"\n--- RESULTADOS ---")
+    print(f"  Total bruto: {len(all_found)}")
 
-                if not article.get('date'):
-                    article['date'] = datetime.now(BR_TZ).isoformat()
+    seen_titles = set()
+    unique = []
+    for a in all_found:
+        title_key = re.sub(r'[^a-zA-Z0-9]', '', a['title'].lower())[:60]
+        if title_key not in seen_titles:
+            seen_titles.add(title_key)
+            unique.append(a)
 
-                article['id'] = generate_article_id(
-                    article['title'], today
-                )
+    print(f"  Apos deduplicacao: {len(unique)}")
 
-                all_articles.append(article)
-                classified += 1
-
-        print(f"  -> {classified} artigos classificados para publicação")
-
-    return all_articles
-
-
-def select_daily_articles(articles):
-    """Seleciona as 2 melhores matérias do dia."""
-    # Ordena por prioridade da fonte
-    articles.sort(key=lambda x: x.get('priority', 99))
+    # ---- SELECAO DAS MELHORES ----
+    unique.sort(key=lambda x: x.get('priority', 99))
 
     selected = []
 
-    # 1 matéria de Direito Imobiliário
-    for art in articles:
-        if art['category'] == 'direito-imobiliario' and len(selected) < 1:
-            selected.append(art)
+    # 1 materia de Direito Imobiliario
+    for a in unique:
+        if a['category'] == 'direito-imobiliario':
+            selected.append(a)
             break
 
-    # 1 matéria de Mercado Imobiliário
-    for art in articles:
-        if art['category'] == 'mercado-imobiliario' and art not in selected:
-            selected.append(art)
+    # 1 materia de Mercado Imobiliario
+    for a in unique:
+        if a['category'] == 'mercado-imobiliario' and a not in selected:
+            selected.append(a)
             break
 
-    # Se não achou mercado, tenta direito do trabalho ou outra imobiliária
+    # Se faltou, pega qualquer uma
     if len(selected) < 2:
-        for art in articles:
-            if art not in selected:
-                selected.append(art)
+        for a in unique:
+            if a not in selected:
+                selected.append(a)
                 if len(selected) >= 2:
                     break
 
-    # Formata para publicação
+    # Formata para publicacao
     now = datetime.now(BR_TZ)
-    for art in selected:
-        art['author'] = 'Douglas Vilar'
-        art['sourceUrl'] = art.pop('url', '')
-        art['source'] = art.get('source', 'Fonte')
-        if not art.get('date') or art['date'] is None:
-            art['date'] = now.isoformat()
+    for a in selected:
+        a['author'] = 'Douglas Vilar'
+        a['sourceUrl'] = a.pop('url', '')
+        a['id'] = gen_id(a['title'], today_str)
+        if not a.get('date'):
+            a['date'] = now.isoformat()
+        a.pop('priority', None)
 
-        # Remove campos internos
-        for key in ['source_type', 'priority']:
-            art.pop(key, None)
+    print(f"\n  Materias selecionadas:")
+    for i, a in enumerate(selected, 1):
+        print(f"    {i}. [{a['category']}] {a['title'][:80]}...")
+        print(f"       Fonte: {a['source']} | Link: {a.get('sourceUrl', '')[:60]}...")
 
     return selected
 
 
-def update_news_json(new_articles):
-    """Atualiza o arquivo data/news.json com novas matérias."""
+def update_json(new_articles):
     news_file = Path(__file__).parent.parent / 'data' / 'news.json'
-
-    # Carrega existentes
     existing = []
     if news_file.exists():
         try:
             with open(news_file, 'r', encoding='utf-8') as f:
                 existing = json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
+        except:
             existing = []
 
-    # Evita duplicatas por ID
     existing_ids = {a.get('id') for a in existing}
-    for art in new_articles:
-        if art.get('id') not in existing_ids:
-            existing.insert(0, art)
+    added = 0
+    for a in new_articles:
+        if a.get('id') not in existing_ids:
+            existing.insert(0, a)
+            added += 1
 
-    # Mantém últimos 60 dias (30 artigos por dia = ~60 artigos)
     existing = existing[:120]
 
-    # Salva
     news_file.parent.mkdir(parents=True, exist_ok=True)
     with open(news_file, 'w', encoding='utf-8') as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
 
-    print(f"\n[OK] {len(new_articles)} novas matérias adicionadas")
-    print(f"[OK] Total de matérias no arquivo: {len(existing)}")
-    print(f"[OK] Arquivo salvo em: {news_file}")
+    print(f"\n  [OK] {added} novas materias adicionadas")
+    print(f"  [OK] Total no arquivo: {len(existing)}")
+    print(f"  [OK] Salvo em: {news_file}")
 
-
-# ============================================================
-# MAIN
-# ============================================================
 
 def main():
-    print("Iniciando busca de notícias...")
-
-    # Busca em todas as fontes
-    all_articles = scrape_all_sources()
-
-    if not all_articles:
-        print("\n[AVISO] Nenhuma matéria relevante encontrada hoje.")
-        print("Usando matéria placeholder...")
+    selected = run_scraper()
+    if not selected:
         now = datetime.now(BR_TZ)
-        all_articles = [{
+        selected = [{
             "id": now.strftime("%Y-%m-%d") + "-placeholder",
-            "title": "Acompanhe as novidades do Direito Imobiliário",
-            "summary": "Fique por dentro das principais decisões judiciais e tendências do mercado imobiliário. Notícias atualizadas diariamente às 04h.",
+            "title": "Acompanhe as novidades do Direito Imobiliario",
+            "summary": "Noticias atualizadas diariamente as 04h com curadoria de mais de 30 fontes.",
             "category": "direito-imobiliario",
             "source": "Douglas Vilar News",
-            "url": "https://douglasvilar.com.br/noticias",
+            "sourceUrl": "https://douglasvilar.com.br/noticias",
             "date": now.isoformat(),
+            "author": "Douglas Vilar",
             "translated": False,
-            "priority": 1,
-            "source_type": "media"
         }]
-
-    # Seleciona as 2 melhores do dia
-    daily = select_daily_articles(all_articles)
-
-    print(f"\nMatérias selecionadas para hoje:")
-    for i, art in enumerate(daily, 1):
-        print(f"  {i}. [{art['category']}] {art['title'][:80]}...")
-        print(f"     Fonte: {art['source']} | Traduzido: {art.get('translated', False)}")
-
-    # Atualiza o JSON
-    update_news_json(daily)
-
+    update_json(selected)
     print(f"\n{'='*60}")
     print(f"  Busca finalizada com sucesso!")
-    print(f"  Matérias publicadas: {len(daily)}")
     print(f"{'='*60}")
 
 
