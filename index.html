@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Douglas Vilar News - Notícias Jurídicas e Mercado Imobiliário</title>
+    <meta name="description" content="Notícias diárias sobre Direito Imobiliário, Mercado Imobiliário, Direito do Trabalho - Por Douglas Vilar, Advogado OAB/PR 47.278">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-inner">
+            <a href="https://douglasvilar.com.br" class="logo">
+                <span class="logo-icon">D</span>
+                <span class="logo-text">ouglas<br>Vilar</span>
+            </a>
+            <nav class="nav-menu">
+                <a href="https://douglasvilar.com.br">Início</a>
+                <a href="https://douglasvilar.com.br/#sobre">Sobre</a>
+                <a href="https://douglasvilar.com.br/#areas">Áreas</a>
+                <a href="#" class="active">Notícias</a>
+                <a href="https://douglasvilar.com.br/#contato">Contato</a>
+            </nav>
+            <div class="header-contact">
+                <a href="https://api.whatsapp.com/send?phone=5541984216639" class="btn-whatsapp-header" target="_blank">
+                    <i class="fab fa-whatsapp"></i> (41) 98421-6639
+                </a>
+            </div>
+            <button class="mobile-toggle" onclick="toggleMenu()">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Hero Banner -->
+    <section class="hero-banner">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1>DOUGLAS VILAR NEWS</h1>
+            <p class="hero-subtitle">Notícias Jurídicas & Mercado Imobiliário</p>
+            <div class="breadcrumb">
+                <a href="https://douglasvilar.com.br">Início</a>
+                <span>/</span>
+                <span>Notícias</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Bar -->
+    <section class="contact-bar">
+        <div class="container contact-bar-inner">
+            <div class="contact-item">
+                <i class="fas fa-phone-alt"></i>
+                <span><strong>(41) 98421-6639</strong></span>
+            </div>
+            <div class="contact-item">
+                <a href="https://api.whatsapp.com/send?phone=5541984216639" target="_blank" class="whatsapp-link">
+                    <i class="fab fa-whatsapp"></i>
+                    <span>Fale conosco pelo WhatsApp</span>
+                </a>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-envelope"></i>
+                <span>contato@douglasvilar.com.br</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <div class="content-grid">
+                <!-- News Feed -->
+                <div class="news-feed">
+                    <div class="section-header">
+                        <h2>Últimas Notícias</h2>
+                        <div class="filter-tabs">
+                            <button class="filter-btn active" data-filter="all">Todas</button>
+                            <button class="filter-btn" data-filter="direito-imobiliario">Direito Imobiliário</button>
+                            <button class="filter-btn" data-filter="mercado-imobiliario">Mercado Imobiliário</button>
+                            <button class="filter-btn" data-filter="direito-trabalho">Direito do Trabalho</button>
+                        </div>
+                    </div>
+
+                    <div id="news-container">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Carregando notícias...</p>
+                        </div>
+                    </div>
+
+                    <div class="pagination" id="pagination"></div>
+                </div>
+
+                <!-- Sidebar -->
+                <aside class="sidebar">
+                    <div class="sidebar-card author-card">
+                        <div class="author-avatar">
+                            <span class="avatar-initials">DV</span>
+                        </div>
+                        <h3>Douglas Vilar</h3>
+                        <p class="author-title">Advogado & Empresário</p>
+                        <p class="author-oab">OAB/PR 47.278</p>
+                        <p class="author-desc">Especialista em Direito Imobiliário, Empresarial e Condominial. Transformando desafios jurídicos em soluções inteligentes desde 1999.</p>
+                        <a href="https://api.whatsapp.com/send?phone=5541984216639" class="btn-whatsapp" target="_blank">
+                            <i class="fab fa-whatsapp"></i> Fale Comigo no WhatsApp
+                        </a>
+                        <a href="tel:+5541984216639" class="btn-phone">
+                            <i class="fas fa-phone-alt"></i> (41) 98421-6639
+                        </a>
+                    </div>
+
+                    <div class="sidebar-card">
+                        <h3 class="sidebar-title">Categorias</h3>
+                        <ul class="category-list">
+                            <li><a href="#" data-filter="direito-imobiliario"><i class="fas fa-building"></i> Direito Imobiliário</a></li>
+                            <li><a href="#" data-filter="mercado-imobiliario"><i class="fas fa-chart-line"></i> Mercado Imobiliário</a></li>
+                            <li><a href="#" data-filter="direito-trabalho"><i class="fas fa-briefcase"></i> Direito do Trabalho</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="sidebar-card">
+                        <h3 class="sidebar-title">Fontes Monitoradas</h3>
+                        <div class="source-tags">
+                            <span class="source-tag tribunal">STJ</span>
+                            <span class="source-tag tribunal">STF</span>
+                            <span class="source-tag tribunal">TST</span>
+                            <span class="source-tag tribunal">TJPR</span>
+                            <span class="source-tag tribunal">TJSP</span>
+                            <span class="source-tag tribunal">TJRS</span>
+                            <span class="source-tag media">Gazeta do Povo</span>
+                            <span class="source-tag media">Wall Street Journal</span>
+                            <span class="source-tag media">Jovem Pan News</span>
+                            <span class="source-tag media">Revista Oeste</span>
+                            <span class="source-tag intl">Reuters</span>
+                            <span class="source-tag intl">Bloomberg</span>
+                        </div>
+                    </div>
+
+                    <div class="sidebar-card newsletter-card">
+                        <h3 class="sidebar-title">Receba as Notícias</h3>
+                        <p>Acompanhe diariamente as principais notícias do mundo jurídico e imobiliário.</p>
+                        <a href="https://api.whatsapp.com/send?phone=5541984216639&text=Olá! Quero receber as notícias diárias." class="btn-whatsapp" target="_blank">
+                            <i class="fab fa-whatsapp"></i> Receber via WhatsApp
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <!-- WhatsApp Float -->
+    <a href="https://api.whatsapp.com/send?phone=5541984216639" class="whatsapp-float" target="_blank" title="Fale conosco pelo WhatsApp">
+        <i class="fab fa-whatsapp"></i>
+    </a>
+
+    <!-- Phone Float -->
+    <a href="tel:+5541984216639" class="phone-float" title="Ligue agora">
+        <i class="fas fa-phone-alt"></i>
+        <span>(41) 98421-6639</span>
+    </a>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <div class="footer-logo">
+                        <span class="logo-icon">D</span>
+                        <span class="logo-text">ouglas<br>Vilar</span>
+                    </div>
+                    <p>Advogado especialista em Direito Imobiliário, Empresarial e Condominial.</p>
+                    <p><strong>OAB/PR 47.278</strong></p>
+                </div>
+                <div class="footer-col">
+                    <h4>Áreas</h4>
+                    <ul>
+                        <li><a href="https://douglasvilar.com.br/#areas">Direito Imobiliário</a></li>
+                        <li><a href="https://douglasvilar.com.br/#areas">Direito Empresarial</a></li>
+                        <li><a href="https://douglasvilar.com.br/#areas">Direito Condominial</a></li>
+                        <li><a href="https://douglasvilar.com.br/#areas">Direito Trabalhista</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Links</h4>
+                    <ul>
+                        <li><a href="https://douglasvilar.com.br">Site Principal</a></li>
+                        <li><a href="https://douglasvilar.com.br/#sobre">Sobre</a></li>
+                        <li><a href="https://douglasvilar.com.br/#contato">Contato</a></li>
+                        <li><a href="#">Notícias</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Contato Direto</h4>
+                    <p class="footer-phone">
+                        <i class="fas fa-phone-alt"></i>
+                        <a href="tel:+5541984216639"><strong>(41) 98421-6639</strong></a>
+                    </p>
+                    <a href="https://api.whatsapp.com/send?phone=5541984216639" class="btn-whatsapp footer-whatsapp" target="_blank">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </a>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#"><i class="fab fa-youtube"></i></a>
+                        <a href="#"><i class="fab fa-spotify"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Douglas Vilar - Todos os direitos reservados.</p>
+                <p>Notícias curadas e publicadas por <strong>Douglas Vilar</strong>.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="news-loader.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
