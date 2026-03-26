@@ -1,0 +1,46 @@
+[
+    {
+        "id": "2026-03-25-001",
+        "title": "STJ decide sobre responsabilidade do condomínio em casos de infiltração entre unidades",
+        "summary": "O Superior Tribunal de Justiça firmou entendimento sobre a responsabilidade condominial nos casos de infiltração que afetam múltiplas unidades, estabelecendo critérios claros para a divisão de custos entre condôminos e o condomínio.",
+        "category": "direito-imobiliario",
+        "source": "STJ",
+        "sourceUrl": "https://www.stj.jus.br/sites/portalp/Paginas/Comunicacao/Noticias.aspx",
+        "date": "2026-03-25T04:00:00",
+        "author": "Douglas Vilar",
+        "translated": false
+    },
+    {
+        "id": "2026-03-25-002",
+        "title": "Mercado imobiliário brasileiro registra alta de 12% nas vendas no primeiro trimestre de 2026",
+        "summary": "De acordo com dados divulgados pela CBIC, o setor imobiliário apresentou crescimento significativo nos primeiros meses do ano, impulsionado pela queda da taxa Selic e novas linhas de crédito habitacional.",
+        "category": "mercado-imobiliario",
+        "source": "Gazeta do Povo",
+        "sourceUrl": "https://www.gazetadopovo.com.br/economia/",
+        "date": "2026-03-25T04:00:00",
+        "author": "Douglas Vilar",
+        "translated": false
+    },
+    {
+        "id": "2026-03-24-001",
+        "title": "TJPR mantém decisão que obriga incorporadora a indenizar comprador por atraso na entrega",
+        "summary": "O Tribunal de Justiça do Paraná manteve condenação de incorporadora ao pagamento de indenização por danos morais e materiais em razão do atraso na entrega de imóvel adquirido na planta, reafirmando a jurisprudência sobre o tema.",
+        "category": "direito-imobiliario",
+        "source": "TJPR",
+        "sourceUrl": "https://www.tjpr.jus.br/noticias",
+        "date": "2026-03-24T04:00:00",
+        "author": "Douglas Vilar",
+        "translated": false
+    },
+    {
+        "id": "2026-03-24-002",
+        "title": "Índice FipeZap aponta desaceleração nos preços de imóveis em Curitiba",
+        "summary": "O índice FipeZap de março mostra que os preços de venda de imóveis residenciais em Curitiba tiveram desaceleração no ritmo de alta, sinalizando equilíbrio entre oferta e demanda no mercado paranaense.",
+        "category": "mercado-imobiliario",
+        "source": "Wall Street Journal",
+        "sourceUrl": "https://www.wsj.com/real-estate",
+        "date": "2026-03-24T04:00:00",
+        "author": "Douglas Vilar",
+        "translated": true
+    }
+]
